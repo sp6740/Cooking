@@ -1,0 +1,24 @@
+library(vroom)
+library(tidyverse)
+library(tidymodels)
+library(summarytools)
+library(skimr)
+library(naniar)
+library(ggplot2)
+
+
+data <- read.csv("StudentsPerformance_with_headers.csv")
+
+summary(data)
+data1 <- data %>% select(-STUDENT.ID)
+
+
+heatmap(cor(data1), symm = TRUE)
+cor_matrix <- cor(data[sapply(data, is.numeric)], use = "pairwise.complete.obs")
+
+corrplot(cor_matrix, method = "color")
+
+skim(data)
+vis_miss(data)
+
+

@@ -1,0 +1,42 @@
+# Data and parameters
+y <- c(4.2, 5.1, 5.0, 6.3, 4.9);
+m <- 5; v <- 4;
+sig2 <- 1
+# log of unnormalized posterior
+log_g1 <- function(mu){
+  loglike <- - (1/(2*sig2)) * sum( (y - mu)^2 )
+  logprior <- - (1/(2*v)) * (mu - m)^2
+  return(loglike + logprior)
+}
+# this is an alternative way to write the same function above
+log_g2 <- function(mu){
+  loglike <- sum(dnorm(y, mean =mu, sd = 1, log = TRUE))
+  logprior <- dnorm(mu, mean = m, sd = sqrt(v), log = TRUE)
+  return(loglike + logprior)
+}
+
+curve(exp(log_g(mu)),
+      from = 2, to = 8, n = 1000,
+      xlab = expression(mu), ylab = expression(g(mu)))
+
+
+# Metropolis ------------------------------------------------------------
+
+J <- 5000
+mu <- rep(NA,J)
+mu[1] <- mean(y)
+prop_sd <- 1
+
+for(j in 2:J){
+  mu_prop <- rnorm(1, mean = mu[j-1], sd = prop_sd)
+  R <- log_g2(mu_prop) - log_g2(mu[j-1])
+  #Accept or reject mu_prop?
+  log_u <- log(runif(1))
+  if(log_u <= min(0, R)){
+    mu[j] <- mu_prop
+  } else {
+    mu[j] <- mu[j-1]
+  }
+}
+
+plot(mu, type = "l")

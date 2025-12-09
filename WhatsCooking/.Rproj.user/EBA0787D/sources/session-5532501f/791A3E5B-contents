@@ -1,0 +1,363 @@
+---
+title: "HW 10"
+format: pdf
+editor: visual
+---
+
+## HW 10
+
+## 1.
+
+```{r}
+library(invgamma)
+
+y <- c(8, 12, 10, 14, 2, 0, 0)
+m <- 6
+v <- 32
+a <- 3
+b <- 50
+
+update.mu <- function(sigma2,ys,m,v){
+  n <- length(ys) 
+  vstar = 1/(n/sigma2 + 1/v) 
+  ybar <- mean(ys)
+  mstar = vstar * (n*ybar/sigma2 + m/v)
+  rnorm(1, mstar, sqrt(vstar))
+}
+
+update.var <- function(mu,ys,a,b){
+  n <- length(ys) 
+  astar <- a + n/2 
+  bstar <- b + .5*sum((ys-mu)^2)
+  ybar <- mean(ys)
+  invgamma::rinvgamma(1, astar, bstar)
+}
+
+### Create vectors that will store draws.
+J <- 1000
+### Notice each has same length
+mu <- rep(NA, J + 1)
+sigma2 <- rep(NA, J + 1)
+
+## Step 0: set the initial values ##
+## Reasonable initial value for mu_nd
+mu[1] <- mean(y)
+## Reasonable initial value for sigma2_nd
+sigma2[1] <- var(y)
+
+# Step 1: Sequential sampling from comp. conditionals #
+for (j in 2:(J+1)){
+  # Step 1a: get the next mu value in the sequence
+  mu[j] <- update.mu(sigma2 = sigma2[j-1], ys = y, m = m, v = v)
+  # Step 1b: get the next sigma2 value in the sequence
+  sigma2[j] <- update.var(mu = mu[j], ys = y, a = a, b = b)
+}
+
+#################################################
+## Step 2: Assessing Convergence ##
+#################################################
+## Trace plot of the mu draws
+plot(mu, type="l", ylab=expression(mu),
+     main=expression(paste("Trace plot for ",mu)))
+## Trace plot of the sigma2 draws
+plot(sigma2, type="l", ylab=expression(sigma^2),
+     main=expression(paste("Trace plot for ",sigma^2)))
+```
+
+By creating trace plots from our Gibbs Sampler, we can see that the data has converged because it is has plateaued and is not continuing to increase or decrease. Our values have become pretty consistent, and we can see that our mean and variance have stopped consistently changing across iterations.
+
+```{r}
+# a
+mean(mu > 0)
+
+# b
+mean(sigma2 > 30)
+
+# c
+x <- seq(0,400, length.out = 100)
+prior_mu <- dnorm(x, m, sqrt(v))
+density_mu <- density(mu)
+plot(x, prior_mu, type = "l", col = "maroon", 
+     main = "Prior and Posterior of mu", xlab = "Blood Pressure", 
+     ylab = "Density", ylim = c(0,.25), xlim = c(0, 50))
+lines(density_mu$x, density_mu$y, type = "l", col = "maroon1")
+
+# d
+prior_sig <- dinvgamma(x, a, b)
+density_sig <- density(sigma2)
+plot(x, prior_sig, type = "l", col = "navy", 
+     main = "Prior and Posterior of sigma", xlab = "Blood Pressure", 
+     ylab = "Density", xlim = c(0, 200))
+lines(density_sig$x, density_sig$y, type = "l", col = "green4")
+
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+## 2.
+
+```{r}
+y <- c(197, 199, 214, 217, 222, 223, 227, 228, 234)
+m <- 180
+v <- 100
+a <- 2.1
+b <- 480
+
+update.mu <- function(sigma2,ys,m,v){
+  n <- length(ys) 
+  vstar = 1/(n/sigma2 + 1/v) 
+  ybar <- mean(ys)
+  mstar = vstar * (n*ybar/sigma2 + m/v)
+  rnorm(1, mstar, sqrt(vstar))
+}
+
+
+update.var <- function(mu,ys,a,b){
+  n <- length(ys)
+  astar <- a + n/2 
+  bstar <- b + .5*sum((ys-mu)^2)
+  ybar <- mean(ys)
+  invgamma::rinvgamma(1, astar, bstar)
+}
+
+
+### Create vectors that will store draws.
+J <- 1000
+### Notice each has same length
+mu <- rep(NA, J + 1)
+sigma2 <- rep(NA, J + 1)
+
+## Step 0: set the initial values ##
+## Reasonable initial value for mu_nd
+mu[1] <- mean(y)
+## Reasonable initial value for sigma2_nd
+sigma2[1] <- var(y)
+
+# Step 1: Sequential sampling from comp. conditionals #
+for (j in 2:(J+1)){
+  # Step 1a: get the next mu value in the sequence
+  mu[j] <- update.mu(sigma2 = sigma2[j-1], ys = y, m = m, v = v)
+  # Step 1b: get the next sigma2 value in the sequence
+  sigma2[j] <- update.var(mu = mu[j], ys = y, a = a, b = b)
+}
+
+#################################################
+## Step 2: Assessing Convergence ##
+#################################################
+## Trace plot of the mu draws
+plot(mu, type="l", ylab=expression(mu),
+     main=expression(paste("Trace plot for ",mu)))
+## Trace plot of the sigma2 draws
+plot(sigma2, type="l", ylab=expression(sigma^2),
+     main=expression(paste("Trace plot for ",sigma^2)))
+```
+
+By creating trace plots from our Gibbs Sampler, we can see that the data has converged because it is has plateaued and is not continuing to increase or decrease. Our values have become pretty consistent, and we can see that our mean and variance have stopped consistently changing across iterations.
+
+```{r}
+# a
+density_mu <- density(mu)
+density_sig <- density(sigma2)
+
+par(mfrow=c(1,2))
+plot(density_mu$x, density_mu$y, type = "l", col = "maroon1", 
+     main = "Posterior of mu", xlab = "Serum Cholesterol", 
+     ylab = "Density")
+plot(density_sig$x, density_sig$y, type = "l", col = "darkgreen",
+     main = "Posterior of sigma", xlab = "Serum Cholesterol",
+     ylab = "Density")
+
+# b
+mean(mu[-(1:40)])
+
+# c
+mean(sigma2[-(1:40)])
+
+
+```
+
+```{r}
+# d
+y <- c(197, 199, 214, 217, 222, 223, 227, 228, 234)
+m <- 180
+v <- 400
+a <- 2.1
+b <- 480
+
+update.mu <- function(sigma2u,ys,m,v){
+  n <- length(ys) 
+  vstar = 1/(n/sigma2u + 1/v)
+  ybar <- mean(ys)
+  mstar = vstar * (n*ybar/sigma2u + m/v)
+  rnorm(1, mstar, sqrt(vstar)) 
+}
+
+
+update.var <- function(muu,ys,a,b){
+  n <- length(ys) ## determine n from how many elements in ys vector
+  astar <- a + n/2 ## determine a* 
+  bstar <- b + .5*sum((ys-muu)^2)
+  ybar <- mean(ys)
+  invgamma::rinvgamma(1, astar, bstar)
+}
+
+
+### Create vectors that will store draws.
+J <- 1000
+### Notice each has same length
+muu <- rep(NA, J + 1)
+sigma2u <- rep(NA, J + 1)
+
+## Step 0: set the initial values ##
+## Reasonable initial value for mu_nd
+muu[1] <- mean(y)
+## Reasonable initial value for sigma2_nd
+sigma2u[1] <- var(y)
+
+# Step 1: Sequential sampling from comp. conditionals #
+for (j in 2:(J+1)){
+  # Step 1a: get the next mu value in the sequence
+  muu[j] <- update.mu(sigma2u = sigma2u[j-1], ys = y, m = m, v = v)
+  # Step 1b: get the next sigma2 value in the sequence
+  sigma2u[j] <- update.var(muu = muu[j], ys = y, a = a, b = b)
+}
+
+#################################################
+## Step 2: Assessing Convergence ##
+#################################################
+## Trace plot of the mu draws
+plot(muu, type="l", ylab=expression(mu),
+     main=expression(paste("Trace plot for ",mu)))
+## Trace plot of the sigma2 draws
+plot(sigma2u, type="l", ylab=expression(sigma^2),
+     main=expression(paste("Trace plot for ",sigma^2)))
+
+```
+
+By creating trace plots from our Gibbs Sampler, we can see that the data has converged because it is has plateaued and is not continuing to increase or decrease. We can see at the beginning that our data may not have fully plateaued for mu, but this is nothing to worry about because our burn can fix this. Our values have become pretty consistent, and we can see that our mean and variance have stopped consistently changing across iterations.
+
+```{r}
+# d continued
+
+density_muu <- density(muu)
+
+plot(density_mu$x, density_mu$y, type = "l", col = "gray",
+     main = "Posterior of both mu's", xlab = "Serum Cholesterol", 
+     ylab = "Density", ylim = c(0, .1), xlim = c(180, 240))
+lines(density_muu$x, density_muu$y, type = "l", col = "black")
+```
+
+## 3.
+
+```{r}
+y <- c(139, 142, 143, 144, 145, 148, 155, 162, 171, 181)
+m <- 150
+v <- 500
+a <- 3
+b <- 180
+
+update.mu <- function(sigma21,ys,m,v){
+  n <- length(ys)
+  vstar = 1/(n/sigma21 + 1/v) 
+  ybar <- mean(ys)
+  mstar = vstar * (n*ybar/sigma21 + m/v)
+  rnorm(1, mstar, sqrt(vstar))
+}
+
+
+update.var <- function(mu1,ys,a,b){
+  n <- length(ys) ## determine n from how many elements in ys vector
+  astar <- a + n/2 ## determine a* 
+  bstar <- b + .5*sum((ys-mu1)^2)
+  ybar <- mean(ys)
+  invgamma::rinvgamma(1, astar, bstar)
+}
+
+
+### Create vectors that will store draws.
+J <- 1000
+### Notice each has same length
+mu1 <- rep(NA, J + 1)
+sigma21 <- rep(NA, J + 1)
+
+## Step 0: set the initial values ##
+## Reasonable initial value for mu_nd
+mu1[1] <- mean(y)
+## Reasonable initial value for sigma2_nd
+sigma21[1] <- var(y)
+
+# Step 1: Sequential sampling from comp. conditionals #
+for (j in 2:(J+1)){
+  # Step 1a: get the next mu value in the sequence
+  mu1[j] <- update.mu(sigma21 = sigma21[j-1], ys = y, m = m, v = v)
+  # Step 1b: get the next sigma2 value in the sequence
+  sigma21[j] <- update.var(mu1 = mu1[j], ys = y, a = a, b = b)
+}
+
+#################################################
+## Step 2: Assessing Convergence ##
+#################################################
+## Trace plot of the mu draws
+plot(mu1, type="l", ylab=expression(mu),
+     main=expression(paste("Trace plot for ",mu)))
+## Trace plot of the sigma2 draws
+plot(sigma21, type="l", ylab=expression(sigma^2),
+     main=expression(paste("Trace plot for ",sigma^2)))
+```
+
+By creating trace plots from our Gibbs Sampler, we can see that the data has converged because it is has plateaued and is not continuing to increase or decrease. We can see at the beginning that our data may not have fully plateaued for mu, but this is nothing to worry about because our burn can fix this.Our values have become pretty consistent, and we can see that our mean and variance have stopped consistently changing across iterations.
+
+```{r}
+density_mu1 <- density(mu1)
+plot(density_mu1$x, density_mu1$y, type = "l", col = "purple3", 
+     main = "Posterior of mu", xlab = "Serum Cholesterol",
+     ylab = "Density")
+
+```
+
+## 4.
+
+```{r}
+# a
+mu_diffs <- muu - mu1
+
+plot(density(mu_diffs), type = "l", col = "lightgreen",
+     main = "Difference in mu's", xlab = "Serum Cholesterol", 
+     ylab = "Density")
+quantile(mu_diffs, c(0.025, 0.975))
+
+
+# b
+sig_diffs <- (sigma2u)/(sigma21)
+plot(density(sig_diffs), type = "l", col = "orange", 
+     main = "Difference in sigma^2s", xlab = "Serum Cholesterol", 
+     ylab = "Density")
+quantile(sig_diffs, c(0.025, 0.975))
+
+```
+
+Our 95% credible interval for the difference between the mu's is from 49.9 to 74.6, which we can conclude that there is a difference between the two posterior means since the interval does not contain 0.
+
+Our 95% credible interval for the difference between the sigma's is from .44 to 4.56, which we can also conclude that there is a difference between the two posterior variances since the interval does not contain 0.
+
+## 5.
+
+```{r}
+
+pred_urban <- rnorm(5000, muu, sigma2u)
+pred_rural <- rnorm(5000, mu1, sigma21)
+diffs <- pred_urban - pred_rural
+
+plot(density(pred_urban), type = "l", col = "hotpink", 
+     main = "Posterior Predictive of mu's", 
+     xlab = "serum cholesterol", ylab = "density",
+     ylim = c(0,.003))
+lines(density(pred_rural), type = "l", col = "lightgreen")
+legend("topright", legend = c("Urban", "Rural"), 
+       col = c("hotpink", "lightgreen"), lwd= 2)
+
+quantile(diffs, c(.025, .975))
+
+```
+
+The biggest difference between our two 95% credible intervals is that the difference between our predictive posterior distribution has an interval that contains 0. This means that there may actually be no difference between our predictive posterior means.

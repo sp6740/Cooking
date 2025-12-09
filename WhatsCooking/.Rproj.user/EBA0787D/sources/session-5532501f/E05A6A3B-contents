@@ -1,0 +1,37 @@
+prior_pred_beta_binom <- function(y_new, n_new, a, b) {
+  gamma(a + b)/(gamma(a)*gamma(b)) * choose(n_new, y_new) * 
+    (gamma(a + y_new) * gamma(b + (n_new - y_new))/gamma(a + b + n_new))
+}
+
+fynew.prior <- function(y_new, n_new, a, b){
+  exp(lgamma(a+b) - lgamma(a) - lgamma(b) +
+        lchoose(n_new, y_new) +
+        lgamma(a + y_new) +
+        lgamma(b + n_new - y_new) - 
+        lgamma(a + b + n_new))
+}
+
+prior_pred_beta_binom(0, 5, 3, 2)
+
+a <- 5
+b <- 900
+
+b/(a-1)
+pinvgamma(250, 5, 900) - pinvgamma(200, 5, 900)
+pinvgamma(300, 5, 900) - pinvgamma(150, 5, 900)
+pinvgamma(20^2, 5, 900) - pinvgamma(10^2, 5, 900)
+
+x <- seq(0,500, .01)
+scores <- c(108, 88, 97, 129, 91, 80, 114, 118,
+            87, 89, 106, 106, 102, 112, 90, 119,
+            100, 106, 93, 97)
+n <- length(scores)
+mu <- 100
+astar <- a + (n/2)
+bstar <- b + (1/2)*sum((scores-mu)^2)
+bstar/(astar-1)
+bstar/(astar + 1)
+qinvgamma(c(.025, .975), astar, bstar)
+
+plot(x, dinvgamma(x, astar, bstar), type = "l", col = "pink")
+lines(x, dinvgamma(x, 5, 900), col = "lightgreen")

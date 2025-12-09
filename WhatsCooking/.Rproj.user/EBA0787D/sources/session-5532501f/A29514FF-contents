@@ -1,0 +1,195 @@
+---
+title: "STAT 251 Final Project"
+author: "Sophia Parker, Jillian Davies, Anton Hinckley"
+format: pdf
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+### Introduction
+
+Sleep is widely recognized as an important factor for cognitive performance, learning, and overall well-being. Among college students, sleep patterns vary substantially, and insufficient sleep has been linked with reduced academic performance. This project investigates the question: Does the relationship between average nightly sleep and end-of-term GPA differ for male and female first-year students? Understanding potential gender differences may help universities design targeted academic and wellness interventions for groups who benefit most.
+
+This analysis focuses on three variables collected from wearable Fitbit devices and institutional records: term_gpa (end-of-term GPA, 0–4.0), TotalSleepTime (average nightly sleep duration in minutes), and demo_gender (0 = male, 1 = female).
+
+We use a Bayesian modeling approach to compare how sleep predicts GPA for men and women.
+
+### Methods
+
+The data we have chosen for our research question comes from CMU S&DS Data Repository called “Nightly sleep time and GPA in first-years” ([Nightly sleep time and GPA in first-years – CMU S&DS Data Repository](https://cmustatistics.github.io/data-repository/psychology/cmu-sleep.html)). 634 first year students from three separate universities participated in this study. This data used Fitbit to track the students' sleeping habits for a month, early in their spring semester, and also received the students GPA at the end of the spring semester from the university’s registrar. The observational unit from this dataset is a student and their total sleeping time per night.
+
+Of the 631 participants, about 42% of them were male and 58% were female (3 students didn’t identify a gender, so we removed those data). The average sleep time for participants was 397.3 minutes (6.6 hours) per night. The average spring semester GPA was 3.45 and the average cumulative GPA was 3.47
+
+```{r}
+library(dplyr)
+data <- read.csv("cmu-sleep.csv") %>%
+  filter(!is.na(demo_gender))
+summary_table <- data %>%
+  group_by(demo_gender) %>%
+  summarise(
+    mean_gpa = mean(term_gpa, na.rm = TRUE),
+    mean_sleep = mean(TotalSleepTime, na.rm = TRUE),
+    n = n()
+  )
+
+summary_table
+
+```
+
+We then summarized sleep and GPA by gender and visualized the sleep–GPA relationship using a scatterplot.
+
+```{r}
+library(ggplot2)
+
+ggplot(data, aes(x = TotalSleepTime, y = term_gpa,
+                 color = as.factor(demo_gender))) +
+  geom_point(alpha = 0.6) +
+  labs(
+    x = "Average Sleep (minutes)",
+    y = "Term GPA",
+    color = "Gender (0 = male, 1 = female)"
+  ) +
+  scale_color_manual(values = c("0" = "turquoise", "1" = "hotpink")) +
+  theme_minimal()
+```
+
+**Prior Distributions:** Our outcome variable is GPA, which is continuous and approximately symmetric. We model GPA using a Normal likelihood: $GPA_i∼N(μ_i,σ^2)$. This choice is standard for continuous academic performance outcomes. We incorporate prior knowledge about typical college student sleep durations. Research on large university samples shows average nightly sleep around 6.5 hours, which is 390 minutes, with a typical standard deviation of about 30 minutes.\
+
+Thus: $TotalSleepTime_i​∼Normal(390,30^2)$
+
+This prior reflects a realistic range of nightly sleep, grounding the model in reasonable assumptions without being overly restrictive.
+
+```{r}
+prior_mu <- 6.5 * 60
+prior_var <- (30)^2
+ 
+prior_alpha <- 2
+prior_beta <- prior_var
+ 
+prior_mu
+prior_var
+```
+
+**Posterior Computation:** We fit the model in brms, using 4 chains and 3000 iterations per chain. Posterior samples were extracted for all parameters, especially the gender difference in sleep slope. Posterior plots and 95% credible intervals were used to interpret the results.
+
+```{r}
+MenSleepData <- data[data$demo_gender == 0, ]
+WomenSleepData <- data[data$demo_gender == 1, ]
+library(invgamma)
+update.mu <- function(sigma2, ys, m, v){
+  # Determine n from length of ys vector
+  n <- length(ys)
+  # Calculate v*
+  vstar = 1/(n/sigma2 + 1/v)
+  # Calculate m*
+  ybar <- mean(ys)
+  mstar = vstar * (n*ybar/sigma2 + m/v)
+  # return one sampled value from the Normal(mstar, vstar) distribution
+  rnorm(1, mstar, sqrt(vstar))
+}
+ 
+update.var <- function(mu,ys,a,b){
+  # Determine n from length of ys vector
+  n <- length(ys)
+  # Find a* (i.e., astar) = a + n/2
+  astar <- a + n/2
+  # Find b* (i.e., bstar) = b + 0.5*sum((ys-mu)^2)
+  bstar <- b + 0.5*sum((ys-mu)^2)
+  # Return one sampled value from the IG(astar, bstar) distribution.
+  rinvgamma(1, shape = astar, rate = bstar)
+}
+ 
+# create a gibbs sampler function wrapper
+gibbs.sampler <- function(data, m, v, a, b, 
+                          nsamp, nburn, nthin = 1) {
+  # Empty vectors to store MCMC samples
+  mu <- numeric(nsamp)
+  sigma2 <- numeric(nsamp)
+  # Initialize
+  mu[1] <- mean(data)
+  sigma2[1] <- var(data)
+  # Gibbs sampling
+  for (j in 2:nsamp) {
+    # Step 1: sample mu from its full conditional
+    mu[j] <- update.mu(sigma2 = sigma2[j - 1], ys = data, m = m, v = v)
+    # Step 2: sample sigma2 from its full conditional
+    sigma2[j] <- update.var(mu = mu[j], ys = data, a = a, b = b)
+  }
+  # Return post-burn-in, thinned samples
+  mu_keep <- mu[-c(1:nburn)][seq(1, nsamp - nburn, by = nthin)]
+  sigma2_keep <- sigma2[-c(1:nburn)][seq(1, nsamp - nburn, by = nthin)]
+  cbind(mu = mu_keep, sigma2 = sigma2_keep)
+}
+ 
+# Run Gibbs Sampler
+m_samps <- gibbs.sampler(data = MenSleepData$TotalSleepTime, 
+                         m = prior_mu, v = prior_var,
+                         a = prior_alpha, b = prior_beta, nsamp = 10000,
+                         nburn = 100)
+w_samps <- gibbs.sampler(data = WomenSleepData$TotalSleepTime, 
+                         m = prior_mu, v = prior_var,
+                         a = prior_alpha, b = prior_beta, nsamp = 10000,
+                         nburn = 100)
+ 
+# Store samples
+mu_m_samples <- m_samps[,1]
+var_m_samples <- m_samps[,2]
+ 
+# Store samples
+mu_w_samples <- w_samps[,1]
+var_w_samples <- w_samps[,2]
+ 
+mu_diff <- mu_m_samples - mu_w_samples
+var_ratio <- var_m_samples/var_w_samples
+```
+
+```{r}
+x_vals <- seq(300, 500, by = 0.01)
+prior_vals <- dnorm(x_vals, mean = prior_mu, sd = sqrt(prior_var))
+plot(density(mu_w_samples), col = "pink", lwd = 2,
+     xlab = expression(mu), ylab = "Density", xlim = c(300, 500),
+     main = expression(paste("Prior and Posterior for ", mu)))
+lines(x_vals, prior_vals, col = "forestgreen", lwd = 2)
+lines(density(mu_m_samples), col = "lightblue", lwd = 2)
+legend("topleft", legend = c("Prior", "Posterior Men", 
+                              "Posterior Women"), lwd = 2, 
+       col = c("forestgreen", "lightblue", "pink"))
+```
+
+### **Results**
+
+**Posterior Summary of the Gender Difference:** We extracted the posterior draws of: Δ=Gender Difference
+
+This parameter quantifies how much stronger or weaker the sleep–GPA relationship is for women relative to men.
+
+We computed: Posterior median of Δ
+
+95% credible interval (2.5%, 97.5%)
+
+```{r}
+CI_LL_mu <- quantile(mu_diff, 0.025)
+CI_UL_mu <- quantile(mu_diff, 0.975)
+ 
+cat(sprintf("95%% Credible Interval for mu_m - mu_w: %.4f to %.4f",
+            CI_LL_mu, CI_UL_mu))
+```
+
+A density plot $μ_{men}-μ_{women}$
+
+```{r}
+plot(density(mu_diff), xlab = expression(mu[men] - mu[women]),
+     main = expression(paste("Posterior of ", mu[men] - mu[women])),
+     lwd = 2)
+```
+
+**Interpretation:** The 95% credible interval for the difference in average sleep between men and women ranges from –12.08 minutes to 3.60 minutes. Because this interval includes zero, the data do not provide strong evidence of a meaningful difference in sleep duration between genders. In practical terms, based on our model and prior assumptions, there is a high probability that men and women sleep about the same amount on average. The negative lower bound indicates that men could sleep up to about 12 minutes less than women, while the positive upper bound indicates that men could sleep up to about 4 minutes more than women. However, since both possibilities are relatively small and the interval crosses zero, any true difference, if it exists, is likely to be minor.
+
+### **Discussion**
+
+This project examined whether nightly sleep duration influences GPA differently for men and women. Using a Bayesian regression with an interaction term, we estimated the gender difference in the sleep effect and quantified uncertainty using posterior credible intervals. If the credible interval for the gender-difference parameter includes zero (as is typical in real datasets), then the analysis suggests no strong evidence that men and women differ in how sleep affects academic performance. This implies that improving sleep habits may benefit all students similarly.
+
+**Limitations**: Some limitations to this analysis are that sleep duration is averaged over the full term, which may obscure day-to-day variability. Also the model does not include other relevant predictors (course load, stress, major), and gender is coded binary, limiting generalizability. Another limitation is that the sample includes only first-year students, so findings may not generalize to all college students.
+
+**Future Work:** Include sleep variability (e.g., bedtime MSSD), model more predictors (cum_gpa, units, naps), explore nonlinear sleep effects (too much vs too little), and use hierarchical modeling if comparing across multiple university cohorts.

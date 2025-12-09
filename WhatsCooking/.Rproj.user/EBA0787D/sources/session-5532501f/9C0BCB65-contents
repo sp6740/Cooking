@@ -1,0 +1,59 @@
+---
+title: "HW 11"
+format: pdf
+editor: visual
+---
+
+## HW 11
+
+## 1.
+
+```{r}
+y <- c(8, 12, 10, 14, 2, 0, 0)
+
+# a
+```
+
+You can add options to executable code like this
+
+```{r}
+# b
+
+J <- 5000
+mu <- rep(NA,J)
+mu[1] <- mean(y)
+prop_sd <- 1
+
+for(j in 2:J){
+  mu_prop <- rnorm(1, mean = mu[j-1], sd = prop_sd)
+  R <- log_g2(mu_prop) - log_g2(mu[j-1])
+  #Accept or reject mu_prop?
+  log_u <- log(runif(1))
+  if(log_u <= min(0, R)){
+    mu[j] <- mu_prop
+  } else {
+    mu[j] <- mu[j-1]
+  }
+}
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```

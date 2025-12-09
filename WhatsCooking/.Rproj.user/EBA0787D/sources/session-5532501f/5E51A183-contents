@@ -1,0 +1,152 @@
+### the following function should update mu given the
+### variance sigma2 for conditionally iid
+### normally distributed data (ys)
+### assuming a Normal (m, v) prior for mu
+
+y <- rnorm(5, 0, 1)
+m <- 1
+v <- .5
+
+update.mu <- function(sigma2,ys,m,v){
+  n <- length(ys) ## determine n from how many elements in ys vector
+  vstar = 1/(n/sigma2 + 1/v) ## determine v* (i.e., vstar), Note vstar = 1/(n/sigma2 + 1/v)
+  ybar <- mean(ys)
+  mstar = vstar * (n*ybar/sigma2 + m/v)## determine m* (i.e., mstar). Note that mstar = vstar * (n*ybar/sigma2 + m/v)
+  rnorm(1, mstar, sqrt(vstar)) ## return one sampled value from the Normal(mstar, vstar) distribution
+
+}
+
+update.mu(sd(y), y, m, v)
+
+
+update.var <- function(mu,ys,a,b){
+  n <- length(ys) ## determine n from how many elements in ys vector
+  astar <- a + n/2 ## determine a* 
+  bstar <- b + .5*sum((ys-mu)^2)
+  ybar <- mean(ys)
+  invgamma::rinvgamma(1, astar, bstar)
+}
+update.var(mu, y, a, b)
+
+
+ig_from_sigma_mom <- function(mean_sigma, sd_sigma) {
+  stopifnot(mean_sigma > 0, sd_sigma > 0)
+  mean_var <- mean_sigma^2
+  sd_var <- 2 * mean_sigma * sd_sigma
+  a <- 2 + (mean_var^2)/(sd_var^2)
+  b <- mean_var * (a - 1)
+  list(a = a, b = b)
+}
+ig_from_sigma_mom(15, 5)
+
+
+set.seed(1)
+y <- rnorm(10, 100, 20) %>% round()
+m <- 90
+v <- 15^2
+a <- 4.25
+b <- 731
+
+
+### Create vectors that will store draws.
+J <- 1000
+### Notice each has same length
+mu <- rep(NA, J + 1)
+sigma2 <- rep(NA, J + 1)
+
+## Step 0: set the initial values ##
+## Reasonable initial value for mu_nd
+mu[1] <- mean(y)
+## Reasonable initial value for sigma2_nd
+sigma2[1] <- var(y)
+
+# Step 1: Sequential sampling from comp. conditionals #
+for (j in 2:(J+1)){
+  # Step 1a: get the next mu value in the sequence
+  mu[j] <- update.mu(sigma2 = sigma2[j-1], ys = y, m = m, v = v)
+  # Step 1b: get the next sigma2 value in the sequence
+  sigma2[j] <- update.var(mu = mu[j], ys = y, a = a, b = b)
+}
+
+#################################################
+## Step 2: Assessing Convergence ##
+#################################################
+## Trace plot of the mu draws
+plot(mu, type="l", ylab=expression(mu),
+     main=expression(paste("Trace plot for ",mu)))
+## Trace plot of the sigma2 draws
+plot(sigma2, type="l", ylab=expression(sigma^2),
+     main=expression(paste("Trace plot for ",sigma^2)))
+
+# if my burn in were 50, then I take out the first 50 values in case they hadn't converged - just for good measure
+mean(mu[-c(1:50)])
+
+hist(mu)
+plot(mu, sigma2)
+
+library(MASS) ### load the MASS package
+?Pima.tr ### learn about the data
+### Extract the diastolic blood pressure (bp) for
+### Pima Indian women without diabetes
+nondiabetic <- Pima.tr$bp[Pima.tr$type=="No"]
+par(mfrow=c(1,1))
+hist(nondiabetic, xlab="Diastolic Blood Pressure",
+     main=paste("Diastolic Blood Pressure for",
+                "Pima Indian Women without Diabetes",
+                sep="\n"))
+diabetic <- Pima.tr$bp[Pima.tr$type=="Yes"]
+
+
+m <- 80
+v <- 3^2
+a <- 5
+b <- 400
+y <- rnorm(200, 80, 3)
+
+J <- 1000
+### Notice each has same length
+mu <- rep(NA, J + 1)
+sigma2 <- rep(NA, J + 1)
+
+## Step 0: set the initial values ##
+## Reasonable initial value for mu_nd
+mu[1] <- mean(nondiabetic)
+## Reasonable initial value for sigma2_nd
+sigma2[1] <- var(nondiabetic)
+
+# Step 1: Sequential sampling from comp. conditionals #
+for (j in 2:(J+1)){
+  # Step 1a: get the next mu value in the sequence
+  mu[j] <- update.mu(sigma2 = sigma2[j-1], ys = y, m = m, v = v)
+  # Step 1b: get the next sigma2 value in the sequence
+  sigma2[j] <- update.var(mu = mu[j], ys = y, a = a, b = b)
+}
+
+mean(mu[-c(0:50)])
+
+#################################################
+## Step 2: Assessing Convergence ##
+#################################################
+## Trace plot of the mu draws
+plot(mu, type="l", ylab=expression(mu),
+     main=expression(paste("Trace plot for ",mu)))
+## Trace plot of the sigma2 draws
+plot(sigma2, type="l", ylab=expression(sigma^2),
+     main=expression(paste("Trace plot for ",sigma^2)))
+
+
+ybar_nd <- mean(nondiabetic)
+n_nd <- length(nondiabetic)
+ybar_d <- mean(diabetic)
+n_nd <- length(diabetic)
+
+quantile(mu[j], c(.025, .975))
+quantile(diabetic, c(.025, .975))
+
+sig_nd <- (sigma2[j]
+sig_d <- sd(diabetic)
+sig_nd; sig_d
+
+div <- (sig_nd^2)/sig_d^2
+
+
