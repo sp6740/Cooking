@@ -4,9 +4,7 @@ library(tidyverse)
 library(tidytext)
 library(textrecipes)
 library(vroom)
-library(bonsai)
-library(discrim)
-library(klaR)
+library(dplyr)
 trainSet <- read_file("C:/Users/sophi/OneDrive/Documents/Stat_348/Cooking/WhatsCooking/train.json") %>%
 fromJSON()
 testSet <- read_file("C:/Users/sophi/OneDrive/Documents/Stat_348/Cooking/WhatsCooking/test.json") %>%
@@ -24,49 +22,29 @@ fromJSON()
 # unnest(ingredients) %>%
 #   count(ingredients)
 
-trainSet <- trainSet %>%
-  mutate(ingredients = sapply(ingredients, paste, collapse = " "))
 
-my_recipe <- recipe(cuisine ~ ., data = trainSet) %>%
-  step_mutate(ingredients = tokenlist(ingredients)) %>%
-  step_tokenfilter(ingredients, max_tokens=3000) %>%
-  step_tfidf(ingredients)
+trainSet <- trainSet %>%
+  as_tibble() %>%
+  mutate(text_ingredients = map_chr(ingredients, ~ paste(.x, collapse = " ")),
+         num_ingredients = map_int(ingredients, length))
+
+testSet <- testSet %>%
+  as_tibble() %>%
+  mutate(text_ingredients = map_chr(ingredients, ~ paste(.x, collapse = " ")),
+         num_ingredients = map_int(ingredients, length))
+
+my_recipe <- recipe(cuisine ~ text_ingredients + num_ingredients, data = trainSet) %>%
+  step_tokenize(text_ingredients) %>%
+  step_tokenfilter(text_ingredients, max_tokens=500) %>%
+  step_tfidf(text_ingredients) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_zv(all_predictors())
 prepped_recipe <- prep(my_recipe)
 baked <- bake(prepped_recipe, new_data=trainSet)
 
 
-my_recipe <- recipe(cuisine ~ ingredients, data = trainSet) %>%
-  step_tokenize(ingredients) %>%
-  step_tokenfilter(ingredients, max_tokens = 5000) %>% 
-  step_tfidf(ingredients)
 
-prepped_recipe <- prep(my_recipe)
-baked <- bake(prepped_recipe, new_data = trainSet) 
-
-nb_spec <- naive_Bayes() %>%
-  set_engine("klaR") %>%
-  set_mode("classification")
-
-nb_wf <- workflow() %>%
-  add_recipe(my_recipe) %>%
-  add_model(nb_spec)
-
-nb_fit <- nb_wf %>% fit(data = trainSet)
-
-grid <- grid_regular(smoothness(range = c(0, 3)), levels = 5)
-
-tuned <- tune_grid(
-  nb_wf,
-  resamples = vfold_cv(trainSet, v = 5),
-  grid = grid,
-  metrics = metric_set(accuracy)
-)
-
-bestTune <- select_best(tuned, "accuracy")
-preds <- predict(bestTune, new_data = testSet)
-
-
-my_model <- rand_forest(mtry=5,
+my_model <- rand_forest(mtry=20,
                         trees=300,
                         min_n=5) %>%
   set_engine("ranger") %>%
@@ -77,123 +55,25 @@ my_wf <- workflow() %>%
   add_model(my_model) %>%
   fit(data = trainSet)
   
-# svm_spec <- svm_linear(cost = 1) %>%
-#   set_engine("LiblineaR") %>%
-#   set_mode("classification")
-# 
-# svm_wf <- workflow() %>%
-#   add_recipe(my_recipe) %>%
-#   add_model(svm_spec) %>%
-#   fit(data = trainSet)
-
-boost_spec <- boost_tree(
-  trees = 500,
-  learn_rate = .1,
-  tree_depth = 12
-) %>%
-  set_engine("lightgbm") %>%
-  set_mode("classification")
-
-my_wf <- workflow() %>%
-  add_recipe(my_recipe) %>%
-  add_model(boost_spec) %>%
-  fit(data = trainSet)
-
-model <- multinom_reg(penalty = 1, mixture = .75) %>% 
-  set_engine("glmnet") %>%
-  set_mode("classification")
-
-
-my_wf <- workflow() %>%
-  add_recipe(my_recipe) %>%
-  add_model(model) %>%
-  fit(trainSet)
-
-folds <- vfold_cv(trainSet, v = 3)
-
-grid <- grid_regular(penalty(range = c(-4, 1)),levels = 5)
-
-tuned <- tune_grid(my_wf,
-  resamples = folds,
-  grid = grid,
-  metrics = metric_set(accuracy))
-
-bestTune <- select_best(tuned, "accuracy")
-
-
 
 
 preds <- predict(my_wf, new_data = testSet)
 
 # preds <- predict(my_wf, new_data = testSet)
 
+testSet <- testSet %>%
+  rename(id = id)
+
 
 kaggle_submission <- preds %>%
-  bind_cols(testSet %>% select(id)) %>%
-  select(id, .pred_class) %>%
+  bind_cols(testSet %>% dplyr::select(id)) %>%
   rename(cuisine = .pred_class)
 
 vroom_write(x=kaggle_submission, file="./cuisinepreds.csv", delim=",")
 
+names(testSet)
 
-library(tidymodels)
-library(tidyverse)
-library(textrecipes)
 
-# --- FIX LIST COLUMN ---
-trainSet <- trainSet %>%
-  mutate(ingredients = map_chr(ingredients, ~ paste(.x, collapse = " ")))
-
-testSet <- testSet %>%
-  mutate(ingredients = map_chr(ingredients, ~ paste(.x, collapse = " ")))
-
-# --- RECIPE ---
-my_recipe <- recipe(cuisine ~ ingredients, data = trainSet) %>%
-  step_tokenize(ingredients) %>%
-  step_tokenfilter(ingredients, max_tokens = 5000) %>% 
-  step_tfidf(ingredients)
-
-# --- MODEL WITH TUNING (use 'naivebayes' engine, not 'klaR') ---
-nb_spec <- naive_Bayes(smoothness = tune()) %>%
-  set_engine("naivebayes") %>%
-  set_mode("classification")
-
-nb_wf <- workflow() %>%
-  add_recipe(my_recipe) %>%
-  add_model(nb_spec)
-
-# --- RESAMPLING ---
-folds <- vfold_cv(trainSet, v = 5)
-
-# --- GRID ---
-grid <- grid_regular(smoothness(range = c(0, 3)), levels = 6)
-
-# --- TUNE ---
-tuned <- tune_grid(
-  nb_wf,
-  resamples = folds,
-  grid = grid,
-  metrics = metric_set(accuracy)
-)
-
-# --- CHOOSE BEST ---
-best_params <- select_best(tuned, "accuracy")
-
-# --- FINALIZE WORKFLOW ---
-final_wf <- finalize_workflow(nb_wf, best_params)
-
-# --- FIT ON FULL TRAINING SET ---
-final_fit <- final_wf %>% fit(data = trainSet)
-
-# --- PREDICT ON TEST SET ---
-preds <- predict(final_fit, new_data = testSet)
-
-# --- KAGGLE SUBMISSION ---
-kaggle_submission <- preds %>%
-  bind_cols(testSet %>% select(id)) %>%
-  rename(cuisine = .pred_class)
-
-vroom::vroom_write(kaggle_submission, "naive_bayes_submission.csv")
 
 
 

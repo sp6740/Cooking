@@ -3,9 +3,9 @@
     "path": "~/Stat_348/Cooking/WhatsCooking/workflow.R",
     "project_path": "workflow.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "3289742365",
     "contents": "",
-    "dirty": true,
+    "dirty": false,
     "created": 1764635753245.0,
     "source_on_save": false,
     "relative_order": 1,
@@ -13,15 +13,15 @@
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "178,0",
-        "scrollLine": "151"
+        "cursorPosition": "73,0",
+        "scrollLine": "49"
     },
     "folds": "",
-    "lastKnownWriteTime": 1765228422,
+    "lastKnownWriteTime": 1765323700,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1765256783047,
+    "last_content_update": 1765323701062,
     "read_only": false,
     "read_only_alternatives": []
 }
